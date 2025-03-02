@@ -14,10 +14,11 @@ import {
   Toast,
   Navbar as TNavbar,
   SwipeCell as TSwipeCell,
-  Dialog,
-  Popup as TPopup
+  Popup as TPopup,
+  type FormRule,
+  type SubmitContext
 } from 'tdesign-mobile-vue'
-import { HomeIcon, DeleteIcon } from 'tdesign-icons-vue-next'
+import { HomeIcon, DeleteIcon, LockOnIcon, LockOffIcon } from 'tdesign-icons-vue-next'
 
 const active = ref('home')
 const meatCount = ref(1)
@@ -36,12 +37,80 @@ const formData = reactive({
   category: ''
 })
 
+// 添加表单验证规则
+const rules = {
+  name: [{ required: true, message: '请输入菜品名称', trigger: 'blur' }] as FormRule[]
+}
+
+// 编辑表单验证规则
+const editRules = {
+  name: [{ required: true, message: '请输入菜品名称', trigger: 'blur' }] as FormRule[]
+}
+
 // 添加菜品列表数据
 const dishes = reactive({
   meat: [] as any[],
   vegetable: [] as any[],
   soup: [] as any[]
 })
+
+// 登录相关状态
+const isLoggedIn = ref(false)
+const showLoginForm = ref(false)
+const password = ref('')
+const authToken = ref('')
+
+// 验证登录状态
+const checkAuth = () => {
+  if (!isLoggedIn.value) {
+    showLoginForm.value = true
+    return false
+  }
+  return true
+}
+
+// 登录
+const login = async () => {
+  try {
+    const response = await fetch('http://localhost:3000/api/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ password: password.value }),
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      authToken.value = data.token
+      isLoggedIn.value = true
+      showLoginForm.value = false
+      password.value = ''
+      Toast({ message: '登录成功' })
+    } else {
+      Toast({ message: '密码错误' })
+    }
+  } catch (error) {
+    Toast({ message: '登录失败' })
+  }
+}
+
+const logout = async () => {
+  try {
+    await fetch('http://localhost:3000/api/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': authToken.value,
+      },
+    })
+    authToken.value = ''
+    isLoggedIn.value = false
+    Toast({ message: '已登出' })
+  } catch (error) {
+    Toast({ message: '登出失败' })
+  }
+}
 
 const getRecommendation = async () => {
   try {
@@ -80,25 +149,21 @@ const getAllDishes = async () => {
 
 // 删除菜品
 const deleteDish = async (id: number) => {
+  if (!checkAuth()) return
+
   try {
-    const confirmed = await Dialog.confirm({
-      title: '确认删除',
-      content: '确定要删除这道菜吗？',
-      confirmBtn: '删除',
-      cancelBtn: '取消'
+    const response = await fetch(`http://localhost:3000/api/dishes/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'x-auth-token': authToken.value,
+      },
     })
     
-    if (confirmed) {
-      const response = await fetch(`http://localhost:3000/api/dishes/${id}`, {
-        method: 'DELETE'
-      })
-      
-      if (response.ok) {
-        Toast({ message: '删除成功' })
-        getAllDishes() // 重新获取菜品列表
-      } else {
-        Toast({ message: '删除失败' })
-      }
+    if (response.ok) {
+      Toast({ message: '删除成功' })
+      getAllDishes()
+    } else {
+      Toast({ message: '删除失败' })
     }
   } catch (error) {
     Toast({ message: '删除失败' })
@@ -110,29 +175,34 @@ onMounted(() => {
   getAllDishes()
 })
 
-const onSubmit = async ({ validateResult }: any) => {
-  if (validateResult === true) {
+const onSubmit = async (context: SubmitContext<any>) => {
+  if (!checkAuth()) return;
+  if (context.validateResult === true) {
     try {
       const response = await fetch('http://localhost:3000/api/dishes', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-auth-token': authToken.value,
         },
-        body: JSON.stringify(formData)
-      })
+        body: JSON.stringify(formData),
+      });
+
       if (response.ok) {
         Toast({ message: '添加成功' })
         formData.name = ''
         formData.category = ''
-        getAllDishes() // 重新获取菜品列表
+        getAllDishes()
       } else {
         Toast({ message: '添加失败' })
       }
     } catch (error) {
       Toast({ message: '添加失败' })
     }
+  } else {
+    Toast({ message: context.firstError })
   }
-}
+};
 
 // 编辑相关的状态
 const showEditForm = ref(false)
@@ -153,40 +223,76 @@ const openEditForm = (dish: any) => {
 }
 
 // 更新菜品
-const updateDish = async () => {
-  try {
-    const response = await fetch(`http://localhost:3000/api/dishes/${editingDish.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: editingDish.name,
-        type: editingDish.type,
-        category: editingDish.category
-      })
-    })
-    
-    if (response.ok) {
-      Toast({ message: '修改成功' })
-      showEditForm.value = false
-      getAllDishes() // 重新获取菜品列表
-    } else {
+const updateDish = async (context: SubmitContext<any>) => {
+  if (!checkAuth()) return;
+  if (context.validateResult === true) {
+    try {
+      const response = await fetch(`http://localhost:3000/api/dishes/${editingDish.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': authToken.value,
+        },
+        body: JSON.stringify(editingDish),
+      });
+
+      if (response.ok) {
+        Toast({ message: '修改成功' })
+        showEditForm.value = false;
+        getAllDishes();
+      } else {
+        Toast({ message: '修改失败' })
+      }
+    } catch (error) {
       Toast({ message: '修改失败' })
     }
-  } catch (error) {
-    Toast({ message: '修改失败' })
+  } else {
+    Toast({ message: context.firstError })
   }
-}
+};
 </script>
 
 <template>
   <div class="app-container">
-    <t-navbar>
-      <template #left>
-        <div class="navbar-title">{{ active === 'home' ? '今天吃啥' : '菜品管理' }}</div>
+    <t-navbar class="navbar">
+      <template #left>{{ active === 'home' ? '今天吃啥' : '菜品管理' }}</template>
+      <template #right>
+        <t-button 
+          variant="text" 
+          @click="isLoggedIn ? logout() : showLoginForm = true"
+        >
+          <template #icon>
+            <t-icon :name="isLoggedIn ? 'lock-off' : 'lock-on'" />
+          </template>
+          {{ isLoggedIn ? '已登录' : '未登录' }}
+        </t-button>
       </template>
     </t-navbar>
+
+    <!-- 登录弹窗 -->
+    <t-popup v-model:visible="showLoginForm" placement="center">
+      <div class="login-form">
+        <div class="login-form-header">
+          <span class="login-form-title">输入管理密码</span>
+        </div>
+        <t-form>
+          <t-input
+            v-model="password"
+            type="password"
+            placeholder="请输入管理密码"
+            clearable
+          />
+          <div class="login-form-buttons">
+            <t-button theme="default" block @click="showLoginForm = false" style="margin-bottom: 12px;">
+              取消
+            </t-button>
+            <t-button theme="primary" block @click="login">
+              确认
+            </t-button>
+          </div>
+        </t-form>
+      </div>
+    </t-popup>
 
     <div class="content">
       <div v-if="active === 'home'">
@@ -209,7 +315,7 @@ const updateDish = async () => {
         </t-cell-group>
 
         <t-button block theme="primary" @click="getRecommendation" style="margin: 16px 0;">
-          推荐菜品
+          推荐
         </t-button>
 
         <t-cell-group v-if="recommendations.meat.length" title="推荐菜单">
@@ -226,11 +332,12 @@ const updateDish = async () => {
       </div>
 
       <div v-else>
-        <t-form ref="form" :data="formData" @submit="onSubmit" style="margin-bottom: 8px;">
+        <t-form ref="form" :data="formData" :rules="rules" @submit="onSubmit" style="margin-bottom: 8px;">
           <t-input
             v-model="formData.name"
             label="菜品名称"
             placeholder="请输入菜品名称"
+            required
           />
           <t-radio-group v-model="formData.type">
             <t-radio value="meat">荤菜</t-radio>
@@ -309,11 +416,12 @@ const updateDish = async () => {
             <div class="edit-form-header">
               <span class="edit-form-title">修改菜品</span>
             </div>
-            <t-form>
+            <t-form ref="editForm" :data="editingDish" :rules="editRules" @submit="updateDish">
               <t-input
                 v-model="editingDish.name"
                 label="菜品名称"
                 placeholder="请输入菜品名称"
+                required
               />
               <t-radio-group v-model="editingDish.type">
                 <t-radio value="meat">荤菜</t-radio>
@@ -329,7 +437,7 @@ const updateDish = async () => {
                 <t-button theme="default" block @click="showEditForm = false" style="margin-bottom: 12px;">
                   取消
                 </t-button>
-                <t-button theme="primary" block @click="updateDish">
+                <t-button theme="primary" block type="submit">
                   保存修改
                 </t-button>
               </div>
@@ -414,7 +522,8 @@ html[theme-mode="dark"] {
 .t-radio-group {
   margin: 16px 0;
   display: flex;
-  justify-content: space-around;
+  justify-content: space-between;
+  background-color: var(--bg-color-demo, #fff);
 }
 
 .t-cell-group {
@@ -533,5 +642,29 @@ html[theme-mode="dark"] .t-cell-group {
 /* 添加点击态效果 */
 .t-cell:active {
   background-color: var(--td-bg-color-secondarycontainer);
+}
+
+/* 登录表单样式 */
+.login-form {
+  background: var(--td-bg-color-container);
+  padding: 24px;
+  border-radius: 16px;
+  width: 300px;
+  max-width: 90vw;
+}
+
+.login-form-header {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.login-form-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--td-text-color-primary);
+}
+
+.login-form-buttons {
+  margin-top: 24px;
 }
 </style>
