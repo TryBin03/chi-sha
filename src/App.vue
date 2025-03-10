@@ -117,6 +117,12 @@ const logout = async () => {
 
 const getRecommendation = async () => {
   try {
+    // 只有当至少选择了一个菜品时才发送请求
+    if (meatCount.value == 0 && vegetableCount.value == 0 && soupCount.value == 0) {
+      Toast({ message: '请至少选择一个菜品' })
+      return
+    }
+
     const response = await fetch(`${apiBaseUrl}/recommend`, {
       method: 'POST',
       headers: {
@@ -129,9 +135,16 @@ const getRecommendation = async () => {
       })
     })
     const data = await response.json()
-    recommendations.meat = data.meat
-    recommendations.vegetable = data.vegetable
-    recommendations.soup = data.soup
+    
+    // 清空之前的推荐
+    recommendations.meat = []
+    recommendations.vegetable = []
+    recommendations.soup = []
+    
+    // 只更新有数量的菜品类型
+    if (meatCount.value > 0) recommendations.meat = data.meat || []
+    if (vegetableCount.value > 0) recommendations.vegetable = data.vegetable || []
+    if (soupCount.value > 0) recommendations.soup = data.soup || []
   } catch (error) {
     Toast({ message: '获取推荐失败' })
   }
@@ -321,7 +334,7 @@ const updateDish = async (context: SubmitContext<any>) => {
           推荐
         </t-button>
 
-        <t-cell-group v-if="recommendations.meat.length" title="推荐菜单">
+        <t-cell-group v-if="recommendations.meat.length | recommendations.vegetable.length | recommendations.soup.length" title="推荐菜单">
           <template v-if="recommendations.meat.length">
             <t-cell title="荤菜" :description="recommendations.meat.map(d => d.name).join('、')" />
           </template>
