@@ -5,23 +5,35 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { mkdirSync } from 'fs';
+import { dirname as pathDirname } from 'path';
 
-// 加载环境变量
-dotenv.config();
+// 根据环境加载配置
+dotenv.config({
+  path: process.env.NODE_ENV === 'production' 
+    ? '.env.production'
+    : '.env'
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // 从环境变量获取管理密码
 const ADMIN_PASSWORD = process.env.VITE_ADMIN_PASSWORD;
 
 if (!ADMIN_PASSWORD) {
-  console.error('错误：未设置管理密码！请在 .env 文件中设置 VITE_ADMIN_PASSWORD');
+  console.error('错误：未设置管理密码！请在环境变量中设置 VITE_ADMIN_PASSWORD');
   process.exit(1);
 }
+
+// 数据库路径
+const DB_PATH = process.env.DB_PATH || join(__dirname, 'dishes.db');
+
+// 确保数据目录存在
+mkdirSync(pathDirname(DB_PATH), { recursive: true });
 
 // 生成一个随机的密钥用于 token 签名
 const SECRET_KEY = crypto.randomBytes(32).toString('hex');
@@ -68,7 +80,7 @@ const validateDishData = (req: express.Request, res: express.Response, next: exp
 };
 
 // 数据库连接
-const db = new sqlite3.Database(join(__dirname, 'dishes.db'), (err) => {
+const db = new sqlite3.Database(DB_PATH, (err) => {
   if (err) {
     console.error('数据库连接失败:', err.message);
   } else {

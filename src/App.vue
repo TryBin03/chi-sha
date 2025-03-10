@@ -18,7 +18,7 @@ import {
   type FormRule,
   type SubmitContext
 } from 'tdesign-mobile-vue'
-import { HomeIcon, DeleteIcon, LockOnIcon, LockOffIcon } from 'tdesign-icons-vue-next'
+import { HomeIcon, DeleteIcon } from 'tdesign-icons-vue-next'
 
 const active = ref('home')
 const meatCount = ref(1)
@@ -47,6 +47,9 @@ const editRules = {
   name: [{ required: true, message: '请输入菜品名称', trigger: 'blur' }] as FormRule[]
 }
 
+// 定义 API 基础路径
+const apiBaseUrl = '/api';
+
 // 添加菜品列表数据
 const dishes = reactive({
   meat: [] as any[],
@@ -72,7 +75,7 @@ const checkAuth = () => {
 // 登录
 const login = async () => {
   try {
-    const response = await fetch('http://localhost:3000/api/login', {
+    const response = await fetch(`${apiBaseUrl}/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -97,7 +100,7 @@ const login = async () => {
 
 const logout = async () => {
   try {
-    await fetch('http://localhost:3000/api/logout', {
+    await fetch(`${apiBaseUrl}/logout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,7 +117,7 @@ const logout = async () => {
 
 const getRecommendation = async () => {
   try {
-    const response = await fetch('http://localhost:3000/api/recommend', {
+    const response = await fetch(`${apiBaseUrl}/recommend`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -137,7 +140,7 @@ const getRecommendation = async () => {
 // 获取所有菜品
 const getAllDishes = async () => {
   try {
-    const response = await fetch('http://localhost:3000/api/dishes')
+    const response = await fetch(`${apiBaseUrl}/dishes`)
     const data = await response.json()
     dishes.meat = data.filter((d: any) => d.type === 'meat')
     dishes.vegetable = data.filter((d: any) => d.type === 'vegetable')
@@ -152,7 +155,7 @@ const deleteDish = async (id: number) => {
   if (!checkAuth()) return
 
   try {
-    const response = await fetch(`http://localhost:3000/api/dishes/${id}`, {
+    const response = await fetch(`${apiBaseUrl}/dishes/${id}`, {
       method: 'DELETE',
       headers: {
         'x-auth-token': authToken.value,
@@ -179,7 +182,7 @@ const onSubmit = async (context: SubmitContext<any>) => {
   if (!checkAuth()) return;
   if (context.validateResult === true) {
     try {
-      const response = await fetch('http://localhost:3000/api/dishes', {
+      const response = await fetch(`${apiBaseUrl}/dishes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +230,7 @@ const updateDish = async (context: SubmitContext<any>) => {
   if (!checkAuth()) return;
   if (context.validateResult === true) {
     try {
-      const response = await fetch(`http://localhost:3000/api/dishes/${editingDish.id}`, {
+      const response = await fetch(`${apiBaseUrl}/dishes/${editingDish.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
