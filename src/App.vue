@@ -23,7 +23,7 @@ import { HomeIcon, DeleteIcon } from 'tdesign-icons-vue-next'
 const active = ref('home')
 const meatCount = ref(1)
 const vegetableCount = ref(1)
-const soupCount = ref(1)
+const soupCount = ref(0)
 
 const recommendations = reactive({
   meat: [] as any[],
