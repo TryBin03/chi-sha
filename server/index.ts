@@ -92,8 +92,19 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
       type TEXT NOT NULL,
       category TEXT NOT NULL
     )`);
+    createRecommendationTable();
   }
 });
+
+// 创建推荐记录表
+const createRecommendationTable = () => {
+  db.run(`CREATE TABLE IF NOT EXISTS recommendations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dish_id INTEGER NOT NULL,
+    recommended_date DATE NOT NULL,
+    FOREIGN KEY(dish_id) REFERENCES dishes(id)
+  )`);
+};
 
 // API 路由
 // 添加新菜品（需要 token 验证）
@@ -121,38 +132,63 @@ app.get('/api/dishes', (req, res) => {
   });
 });
 
-// 随机获取菜品（公开访问）
+// 获取推荐菜品
 app.post('/api/recommend', (req, res) => {
-  const { meat, vegetable, soup } = req.body;
-  const recommendations: any = { meat: [], vegetable: [], soup: [] };
-  
-  const getRandomDishes = (type: string, count: number) => {
-    return new Promise((resolve, reject) => {
-      db.all(
-        'SELECT * FROM dishes WHERE type = ? ORDER BY RANDOM() LIMIT ?',
-        [type, count],
-        (err, rows) => {
-          if (err) reject(err);
-          else resolve(rows);
-        }
-      );
+  const { meat, vegetable, soup, noRepeatInWeek } = req.body;
+  const today = new Date();
+  const oneWeekAgo = new Date(today);
+  oneWeekAgo.setDate(today.getDate() - 7);
+
+  const getDishesQuery = (type) => {
+    let query = `SELECT * FROM dishes WHERE type = ?`;
+    if (noRepeatInWeek) {
+      query += ` AND id NOT IN (SELECT dish_id FROM recommendations WHERE recommended_date >= ?)`;
+    }
+    return query;
+  };
+
+  const getDishes = (type, count, callback) => {
+    const query = getDishesQuery(type);
+    const params = noRepeatInWeek ? [type, oneWeekAgo.toISOString()] : [type];
+    db.all(query, params, (err, rows) => {
+      if (err) {
+        callback(err);
+      } else {
+        const selectedDishes = rows.sort(() => 0.5 - Math.random()).slice(0, count);
+        callback(null, selectedDishes);
+      }
     });
   };
 
-  Promise.all([
-    getRandomDishes('meat', meat),
-    getRandomDishes('vegetable', vegetable),
-    getRandomDishes('soup', soup)
-  ])
-    .then(([meatDishes, vegDishes, soupDishes]) => {
-      recommendations.meat = meatDishes;
-      recommendations.vegetable = vegDishes;
-      recommendations.soup = soupDishes;
-      res.json(recommendations);
-    })
-    .catch(err => {
-      res.status(500).json({ error: err.message });
+  const updateRecommendations = (dishes) => {
+    const stmt = db.prepare(`INSERT INTO recommendations (dish_id, recommended_date) VALUES (?, ?)`);
+    dishes.forEach(dish => {
+      stmt.run(dish.id, today.toISOString());
     });
+    stmt.finalize();
+  };
+
+  const recommendations = { meat: [], vegetable: [], soup: [] };
+
+  getDishes('meat', meat, (err, meatDishes) => {
+    if (err) return res.status(500).json({ error: '获取推荐失败' });
+    recommendations.meat = meatDishes;
+    updateRecommendations(meatDishes);
+
+    getDishes('vegetable', vegetable, (err, vegetableDishes) => {
+      if (err) return res.status(500).json({ error: '获取推荐失败' });
+      recommendations.vegetable = vegetableDishes;
+      updateRecommendations(vegetableDishes);
+
+      getDishes('soup', soup, (err, soupDishes) => {
+        if (err) return res.status(500).json({ error: '获取推荐失败' });
+        recommendations.soup = soupDishes;
+        updateRecommendations(soupDishes);
+
+        res.json(recommendations);
+      });
+    });
+  });
 });
 
 // 删除菜品（需要 token 验证）

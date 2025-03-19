@@ -16,7 +16,8 @@ import {
   SwipeCell as TSwipeCell,
   Popup as TPopup,
   type FormRule,
-  type SubmitContext
+  type SubmitContext,
+  Switch as TSwitch
 } from 'tdesign-mobile-vue'
 import { HomeIcon, DeleteIcon } from 'tdesign-icons-vue-next'
 
@@ -24,6 +25,7 @@ const active = ref('home')
 const meatCount = ref(1)
 const vegetableCount = ref(1)
 const soupCount = ref(0)
+const noRepeatInWeek = ref(false)
 
 const recommendations = reactive({
   meat: [] as any[],
@@ -131,7 +133,8 @@ const getRecommendation = async () => {
       body: JSON.stringify({
         meat: meatCount.value,
         vegetable: vegetableCount.value,
-        soup: soupCount.value
+        soup: soupCount.value,
+        noRepeatInWeek: noRepeatInWeek.value
       })
     })
     const data = await response.json()
@@ -326,6 +329,13 @@ const updateDish = async (context: SubmitContext<any>) => {
           <t-cell title="汤类数量">
             <template #note>
               <t-stepper v-model="soupCount" theme="filled" />
+            </template>
+          </t-cell>
+        </t-cell-group>
+        <t-cell-group>
+          <t-cell title="一周内不重复">
+            <template #note>
+              <t-switch v-model="noRepeatInWeek" />
             </template>
           </t-cell>
         </t-cell-group>
