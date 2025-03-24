@@ -142,7 +142,7 @@ app.post('/api/dishes', verifyToken, validateDishData, (req, res) => {
 
 // 获取所有菜品（公开访问）
 app.get('/api/dishes', (req, res) => {
-  const sql = 'SELECT * FROM dishes';
+  const sql = 'SELECT * FROM dishes ORDER BY name COLLATE NOCASE';
   db.all(sql, [], (err, rows) => {
     if (err) {
       res.status(400).json({ error: err.message });
