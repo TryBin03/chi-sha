@@ -85,14 +85,30 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     console.error('数据库连接失败:', err.message);
   } else {
     console.log('成功连接到数据库');
-    // 创建菜品表
-    db.run(`CREATE TABLE IF NOT EXISTS dishes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL,
-      category TEXT NOT NULL
-    )`);
-    createRecommendationTable();
+    
+    // 开始事务
+    db.serialize(() => {
+      // 创建临时表
+      db.run(`CREATE TABLE IF NOT EXISTS dishes_temp (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        type TEXT NOT NULL,
+        category TEXT NOT NULL
+      )`);
+
+      // 复制数据到临时表
+      db.run(`INSERT OR IGNORE INTO dishes_temp (id, name, type, category)
+              SELECT id, name, type, category FROM dishes`);
+
+      // 删除旧表
+      db.run(`DROP TABLE IF EXISTS dishes`);
+
+      // 重命名临时表为新表
+      db.run(`ALTER TABLE dishes_temp RENAME TO dishes`);
+
+      // 创建推荐记录表
+      createRecommendationTable();
+    });
   }
 });
 
@@ -113,6 +129,10 @@ app.post('/api/dishes', verifyToken, validateDishData, (req, res) => {
   const sql = 'INSERT INTO dishes (name, type, category) VALUES (?, ?, ?)';
   db.run(sql, [name, type, category], function(err) {
     if (err) {
+      if (err.message.includes('UNIQUE constraint failed')) {
+        res.status(400).json({ error: 'DUPLICATE_NAME' });
+        return;
+      }
       res.status(400).json({ error: err.message });
       return;
     }
@@ -211,6 +231,10 @@ app.put('/api/dishes/:id', verifyToken, validateDishData, (req, res) => {
   const sql = 'UPDATE dishes SET name = ?, type = ?, category = ? WHERE id = ?';
   db.run(sql, [name, type, category, id], function(err) {
     if (err) {
+      if (err.message.includes('UNIQUE constraint failed')) {
+        res.status(400).json({ error: 'DUPLICATE_NAME' });
+        return;
+      }
       res.status(400).json({ error: err.message });
       return;
     }

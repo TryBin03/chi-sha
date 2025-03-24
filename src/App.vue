@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { 
   TabBar as TTabBar,
   TabBarItem as TTabBarItem,
   Button as TButton,
   Form as TForm,
   Input as TInput,
-  RadioGroup as TRadioGroup,
-  Radio as TRadio,
   CellGroup as TCellGroup,
   Cell as TCell,
   Stepper as TStepper,
@@ -15,11 +13,10 @@ import {
   Navbar as TNavbar,
   SwipeCell as TSwipeCell,
   Popup as TPopup,
-  type FormRule,
-  type SubmitContext,
   Switch as TSwitch
 } from 'tdesign-mobile-vue'
-import { HomeIcon, DeleteIcon } from 'tdesign-icons-vue-next'
+import { HappyIcon, BroccoliIcon } from 'tdesign-icons-vue-next'
+import DishForm from './components/DishForm.vue'
 
 const active = ref('home')
 const meatCount = ref(1)
@@ -38,16 +35,6 @@ const formData = reactive({
   type: 'meat',
   category: ''
 })
-
-// 添加表单验证规则
-const rules = {
-  name: [{ required: true, message: '请输入菜品名称', trigger: 'blur' }] as FormRule[]
-}
-
-// 编辑表单验证规则
-const editRules = {
-  name: [{ required: true, message: '请输入菜品名称', trigger: 'blur' }] as FormRule[]
-}
 
 // 定义 API 基础路径
 const apiBaseUrl = '/api';
@@ -166,6 +153,11 @@ const getAllDishes = async () => {
   }
 }
 
+// 获取所有菜品的扁平列表
+const getAllDishesList = computed(() => {
+  return [...dishes.meat, ...dishes.vegetable, ...dishes.soup]
+})
+
 // 删除菜品
 const deleteDish = async (id: number) => {
   if (!checkAuth()) return
@@ -194,32 +186,40 @@ onMounted(() => {
   getAllDishes()
 })
 
-const onSubmit = async (context: SubmitContext<any>) => {
-  if (!checkAuth()) return;
-  if (context.validateResult === true) {
-    try {
-      const response = await fetch(`${apiBaseUrl}/dishes`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': authToken.value,
-        },
-        body: JSON.stringify(formData),
-      });
+interface DishData {
+  name: string
+  type: string
+  category: string
+}
 
-      if (response.ok) {
-        Toast({ message: '添加成功' })
-        formData.name = ''
-        formData.category = ''
-        getAllDishes()
+const onSubmit = async (data: DishData) => {
+  if (!checkAuth()) return;
+  try {
+    const response = await fetch(`${apiBaseUrl}/dishes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': authToken.value,
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (response.ok) {
+      Toast({ message: '添加成功' })
+      formData.name = ''
+      formData.category = ''
+      getAllDishes()
+    } else {
+      if (responseData.error === 'DUPLICATE_NAME') {
+        Toast({ message: '该菜品名称已存在' })
       } else {
         Toast({ message: '添加失败' })
       }
-    } catch (error) {
-      Toast({ message: '添加失败' })
     }
-  } else {
-    Toast({ message: context.firstError })
+  } catch (error) {
+    Toast({ message: '添加失败' })
   }
 };
 
@@ -242,31 +242,33 @@ const openEditForm = (dish: any) => {
 }
 
 // 更新菜品
-const updateDish = async (context: SubmitContext<any>) => {
+const updateDish = async (data: DishData) => {
   if (!checkAuth()) return;
-  if (context.validateResult === true) {
-    try {
-      const response = await fetch(`${apiBaseUrl}/dishes/${editingDish.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-auth-token': authToken.value,
-        },
-        body: JSON.stringify(editingDish),
-      });
+  try {
+    const response = await fetch(`${apiBaseUrl}/dishes/${editingDish.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-auth-token': authToken.value,
+      },
+      body: JSON.stringify(data),
+    });
 
-      if (response.ok) {
-        Toast({ message: '修改成功' })
-        showEditForm.value = false;
-        getAllDishes();
+    const responseData = await response.json();
+
+    if (response.ok) {
+      Toast({ message: '修改成功' })
+      showEditForm.value = false;
+      getAllDishes();
+    } else {
+      if (responseData.error === 'DUPLICATE_NAME') {
+        Toast({ message: '该菜品名称已存在' })
       } else {
         Toast({ message: '修改失败' })
       }
-    } catch (error) {
-      Toast({ message: '修改失败' })
     }
-  } else {
-    Toast({ message: context.firstError })
+  } catch (error) {
+    Toast({ message: '修改失败' })
   }
 };
 </script>
@@ -289,7 +291,7 @@ const updateDish = async (context: SubmitContext<any>) => {
     </t-navbar>
 
     <!-- 登录弹窗 -->
-    <t-popup v-model:visible="showLoginForm" placement="center">
+    <t-popup v-model:visible="showLoginForm" placement="center" :z-index="7000">
       <div class="login-form">
         <div class="login-form-header">
           <span class="login-form-title">输入管理密码</span>
@@ -358,27 +360,14 @@ const updateDish = async (context: SubmitContext<any>) => {
       </div>
 
       <div v-else>
-        <t-form ref="form" :data="formData" :rules="rules" @submit="onSubmit" style="margin-bottom: 8px;">
-          <t-input
-            v-model="formData.name"
-            label="菜品名称"
-            placeholder="请输入菜品名称"
-            required
+        <div class="form-container">
+          <dish-form
+            :initial-data="formData"
+            :all-dishes="getAllDishesList"
+            submit-text="添加菜品"
+            @submit="onSubmit"
           />
-          <t-radio-group v-model="formData.type">
-            <t-radio value="meat">荤菜</t-radio>
-            <t-radio value="vegetable">素菜</t-radio>
-            <t-radio value="soup">汤类</t-radio>
-          </t-radio-group>
-          <t-input
-            v-model="formData.category"
-            label="分类"
-            placeholder="请输入菜品分类（如：川菜、粤菜等）"
-          />
-          <t-button block theme="primary" type="submit">
-            添加菜品
-          </t-button>
-        </t-form>
+        </div>
 
         <div class="swipe-hint-container">
           <span class="swipe-hint">左滑可删除菜品，点击可编辑</span>
@@ -442,32 +431,14 @@ const updateDish = async (context: SubmitContext<any>) => {
             <div class="edit-form-header">
               <span class="edit-form-title">修改菜品</span>
             </div>
-            <t-form ref="editForm" :data="editingDish" :rules="editRules" @submit="updateDish">
-              <t-input
-                v-model="editingDish.name"
-                label="菜品名称"
-                placeholder="请输入菜品名称"
-                required
-              />
-              <t-radio-group v-model="editingDish.type">
-                <t-radio value="meat">荤菜</t-radio>
-                <t-radio value="vegetable">素菜</t-radio>
-                <t-radio value="soup">汤类</t-radio>
-              </t-radio-group>
-              <t-input
-                v-model="editingDish.category"
-                label="分类"
-                placeholder="请输入菜品分类（如：川菜、粤菜等）"
-              />
-              <div class="edit-form-buttons">
-                <t-button theme="default" block @click="showEditForm = false" style="margin-bottom: 12px;">
-                  取消
-                </t-button>
-                <t-button theme="primary" block type="submit">
-                  保存修改
-                </t-button>
-              </div>
-            </t-form>
+            <dish-form
+              :initial-data="editingDish"
+              :all-dishes="getAllDishesList"
+              :current-id="editingDish.id"
+              submit-text="保存修改"
+              @submit="updateDish"
+              @cancel="showEditForm = false"
+            />
           </div>
         </t-popup>
       </div>
@@ -476,13 +447,13 @@ const updateDish = async (context: SubmitContext<any>) => {
     <t-tab-bar v-model="active" fixed>
       <t-tab-bar-item value="home">
         <template #icon>
-          <home-icon />
+          <happy-icon />
         </template>
         今天吃啥
       </t-tab-bar-item>
       <t-tab-bar-item value="manage">
         <template #icon>
-          <delete-icon />
+          <broccoli-icon />
         </template>
         菜品管理
       </t-tab-bar-item>
@@ -534,22 +505,6 @@ html[theme-mode="dark"] {
   overflow-y: auto;
   background: var(--td-bg-color-page);
   transition: background-color 0.3s ease;
-}
-
-/* 表单样式优化 */
-.t-form {
-  background: var(--td-bg-color-container);
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  transition: background-color 0.3s ease;
-}
-
-.t-radio-group {
-  margin: 16px 0;
-  display: flex;
-  justify-content: space-between;
-  background-color: var(--bg-color-demo, #fff);
 }
 
 .t-cell-group {
@@ -692,5 +647,14 @@ html[theme-mode="dark"] .t-cell-group {
 
 .login-form-buttons {
   margin-top: 24px;
+}
+
+/* 表单容器样式 */
+.form-container {
+  background: var(--td-bg-color-container);
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  transition: background-color 0.3s ease;
 }
 </style>
