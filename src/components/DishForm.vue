@@ -56,6 +56,12 @@ const rules = {
 
 const onSubmit = () => {
   emit('submit', formData.value)
+  // 重置表单数据
+  formData.value = {
+    name: '',
+    type: 'meat',
+    category: ''
+  }
 }
 
 const onCancel = () => {
@@ -83,13 +89,13 @@ const onCancel = () => {
       <t-radio value="vegetable">素菜</t-radio>
       <t-radio value="soup">汤类</t-radio>
     </t-radio-group>
-    <t-form-item name="category">
+    <!-- <t-form-item name="category">
     <t-input
       v-model="formData.category"
       placeholder="请输入菜品分类（如：川菜、粤菜等）"
       borderless
     />
-    </t-form-item>
+    </t-form-item> -->
     <div class="form-buttons">
       <t-button theme="default" @click="onCancel">
         取消
