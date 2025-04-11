@@ -120,6 +120,15 @@ const createRecommendationTable = () => {
     recommended_date DATE NOT NULL,
     FOREIGN KEY(dish_id) REFERENCES dishes(id)
   )`);
+  
+  // 创建周菜单表
+  db.run(`CREATE TABLE IF NOT EXISTS week_menu (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day INTEGER NOT NULL,
+    dish_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(dish_id) REFERENCES dishes(id)
+  )`);
 };
 
 // API 路由
@@ -206,6 +215,127 @@ app.post('/api/recommend', (req, res) => {
         updateRecommendations(soupDishes);
 
         res.json(recommendations);
+      });
+    });
+  });
+});
+
+// 获取当前周菜单
+app.get('/api/week-menu', (req, res) => {
+  db.all(`SELECT wm.id, wm.day, d.id as dish_id, d.name, d.type, d.category 
+          FROM week_menu wm
+          JOIN dishes d ON wm.dish_id = d.id
+          ORDER BY wm.day ASC`, [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: '获取周菜单失败', details: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// 生成新的周菜单
+app.post('/api/week-menu/generate', (req, res) => {
+  const today = new Date();
+  
+  // 先清空现有的周菜单
+  db.run(`DELETE FROM week_menu`, [], (err) => {
+    if (err) {
+      return res.status(500).json({ error: '重置周菜单失败', details: err.message });
+    }
+    
+    // 获取所有菜品
+    db.all(`SELECT * FROM dishes`, [], (err, allDishes) => {
+      if (err) {
+        return res.status(500).json({ error: '获取菜品失败', details: err.message });
+      }
+      
+      // 随机选择7个不重复的菜品
+      const selectedDishes = allDishes.sort(() => 0.5 - Math.random()).slice(0, 7);
+      
+      if (selectedDishes.length < 7) {
+        return res.status(400).json({ error: '菜品数量不足，无法生成7天的菜单' });
+      }
+      
+      // 插入新的周菜单
+      const stmt = db.prepare(`INSERT INTO week_menu (day, dish_id) VALUES (?, ?)`);
+      selectedDishes.forEach((dish, index) => {
+        stmt.run(index, dish.id);
+      });
+      stmt.finalize();
+      
+      // 返回生成的菜单
+      db.all(`SELECT wm.id, wm.day, d.id as dish_id, d.name, d.type, d.category 
+              FROM week_menu wm
+              JOIN dishes d ON wm.dish_id = d.id
+              ORDER BY wm.day ASC`, [], (err, rows) => {
+        if (err) {
+          return res.status(500).json({ error: '获取新生成的周菜单失败', details: err.message });
+        }
+        res.json(rows);
+      });
+    });
+  });
+});
+
+// 更新某一天的菜单
+app.put('/api/week-menu/day/:day', (req, res) => {
+  const day = parseInt(req.params.day);
+  
+  if (isNaN(day) || day < 0 || day > 6) {
+    return res.status(400).json({ error: '无效的日期索引，应为0-6之间的整数' });
+  }
+  
+  // 获取当前周菜单中已有的菜品ID
+  db.all(`SELECT dish_id FROM week_menu WHERE day != ?`, [day], (err, usedDishes) => {
+    if (err) {
+      return res.status(500).json({ error: '获取当前菜单失败', details: err.message });
+    }
+    
+    const usedDishIds = usedDishes.map(d => d.dish_id);
+    
+    // 获取未使用的菜品
+    db.all(`SELECT * FROM dishes WHERE id NOT IN (${usedDishIds.length > 0 ? usedDishIds.join(',') : -1})`, [], (err, availableDishes) => {
+      if (err) {
+        return res.status(500).json({ error: '获取可用菜品失败', details: err.message });
+      }
+      
+      if (availableDishes.length === 0) {
+        return res.status(400).json({ error: '没有可用的不重复菜品' });
+      }
+      
+      // 随机选择一个新菜品
+      const selectedDish = availableDishes[Math.floor(Math.random() * availableDishes.length)];
+      
+      // 更新特定日期的菜单
+      db.run(`UPDATE week_menu SET dish_id = ? WHERE day = ?`, [selectedDish.id, day], function(err) {
+        if (err) {
+          return res.status(500).json({ error: '更新菜单失败', details: err.message });
+        }
+        
+        if (this.changes === 0) {
+          // 如果没有更新任何行，说明这一天可能还没有记录，需要插入
+          db.run(`INSERT INTO week_menu (day, dish_id) VALUES (?, ?)`, [day, selectedDish.id], (err) => {
+            if (err) {
+              return res.status(500).json({ error: '创建菜单失败', details: err.message });
+            }
+            
+            res.json({
+              day,
+              dish_id: selectedDish.id,
+              name: selectedDish.name,
+              type: selectedDish.type,
+              category: selectedDish.category
+            });
+          });
+        } else {
+          res.json({
+            day,
+            dish_id: selectedDish.id,
+            name: selectedDish.name,
+            type: selectedDish.type,
+            category: selectedDish.category
+          });
+        }
       });
     });
   });

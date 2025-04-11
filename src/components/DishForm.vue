@@ -67,6 +67,9 @@ const onSubmit = () => {
 const onCancel = () => {
   emit('cancel')
 }
+
+// 为了兼容Vue Router，需要添加默认导出
+defineExpose({})
 </script>
 
 <template>
