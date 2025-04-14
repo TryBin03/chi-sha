@@ -63,7 +63,7 @@ const getRecommendation = async () => {
 
 <template>
   <div class="home-page">
-    <t-cell-group>
+    <t-cell-group theme="card">
       <t-cell title="荤菜数量">
         <template #note>
           <t-stepper v-model="meatCount" theme="filled" />
@@ -79,8 +79,6 @@ const getRecommendation = async () => {
           <t-stepper v-model="soupCount" theme="filled" />
         </template>
       </t-cell>
-    </t-cell-group>
-    <t-cell-group>
       <t-cell title="一周内不重复">
         <template #note>
           <t-switch v-model="noRepeatInWeek" />
@@ -88,11 +86,12 @@ const getRecommendation = async () => {
       </t-cell>
     </t-cell-group>
 
-    <t-button block theme="primary" @click="getRecommendation" style="margin: 16px 0;">
+    <t-cell-group theme="card">
+      <t-button block theme="primary" @click="getRecommendation" style="margin: 16px 0;">
       推荐
-    </t-button>
-
-    <t-cell-group v-if="recommendations.meat.length || recommendations.vegetable.length || recommendations.soup.length" title="推荐菜单">
+      </t-button>
+    </t-cell-group>
+    <t-cell-group theme="card" v-if="recommendations.meat.length || recommendations.vegetable.length || recommendations.soup.length" title="推荐菜单">
       <template v-if="recommendations.meat.length">
         <t-cell title="荤菜" :description="recommendations.meat.map(d => d.name).join('、')" />
       </template>
@@ -108,6 +107,7 @@ const getRecommendation = async () => {
 
 <style scoped>
 .home-page {
-  padding: 16px;
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 </style> 

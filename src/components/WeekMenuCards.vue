@@ -12,10 +12,6 @@ interface WeekMenuItem {
   category: string
 }
 
-const props = defineProps<{
-  weekMenu: WeekMenuItem[]
-}>()
-
 const emit = defineEmits<{
   (e: 'regenerateDay', day: number): void
 }>()

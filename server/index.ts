@@ -125,9 +125,13 @@ const createRecommendationTable = () => {
   db.run(`CREATE TABLE IF NOT EXISTS week_menu (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     day INTEGER NOT NULL,
-    dish_id INTEGER NOT NULL,
+    meat_dish_id INTEGER,
+    vegetable_dish_id INTEGER,
+    soup_dish_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(dish_id) REFERENCES dishes(id)
+    FOREIGN KEY(meat_dish_id) REFERENCES dishes(id),
+    FOREIGN KEY(vegetable_dish_id) REFERENCES dishes(id),
+    FOREIGN KEY(soup_dish_id) REFERENCES dishes(id)
   )`);
 };
 
@@ -243,35 +247,62 @@ app.post('/api/week-menu/generate', (req, res) => {
       return res.status(500).json({ error: '重置周菜单失败', details: err.message });
     }
     
-    // 获取所有菜品
+    // 获取所有菜品并按类型分类
     db.all(`SELECT * FROM dishes`, [], (err, allDishes) => {
       if (err) {
         return res.status(500).json({ error: '获取菜品失败', details: err.message });
       }
       
-      // 随机选择7个不重复的菜品
-      const selectedDishes = allDishes.sort(() => 0.5 - Math.random()).slice(0, 7);
+      const meatDishes = allDishes.filter(d => d.type === 'meat');
+      const vegetableDishes = allDishes.filter(d => d.type === 'vegetable');
+      const soupDishes = allDishes.filter(d => d.type === 'soup');
       
-      if (selectedDishes.length < 7) {
+      // 检查是否有足够的菜品
+      if (meatDishes.length < 7 || vegetableDishes.length < 7 || (soupDishes.length < 7 && soupDishes.length > 0)) {
         return res.status(400).json({ error: '菜品数量不足，无法生成7天的菜单' });
       }
       
-      // 插入新的周菜单
-      const stmt = db.prepare(`INSERT INTO week_menu (day, dish_id) VALUES (?, ?)`);
-      selectedDishes.forEach((dish, index) => {
-        stmt.run(index, dish.id);
-      });
-      stmt.finalize();
+      // 随机排序各类菜品
+      const shuffledMeat = [...meatDishes].sort(() => 0.5 - Math.random());
+      const shuffledVegetable = [...vegetableDishes].sort(() => 0.5 - Math.random());
+      const shuffledSoup = [...soupDishes].sort(() => 0.5 - Math.random());
       
-      // 返回生成的菜单
-      db.all(`SELECT wm.id, wm.day, d.id as dish_id, d.name, d.type, d.category 
-              FROM week_menu wm
-              JOIN dishes d ON wm.dish_id = d.id
-              ORDER BY wm.day ASC`, [], (err, rows) => {
-        if (err) {
-          return res.status(500).json({ error: '获取新生成的周菜单失败', details: err.message });
+      // 使用事务确保所有操作原子性
+      db.serialize(() => {
+        const stmt = db.prepare(`INSERT INTO week_menu 
+          (day, meat_dish_id, vegetable_dish_id, soup_dish_id) 
+          VALUES (?, ?, ?, ?)`);
+        
+        // 为每天生成一组菜品
+        for (let day = 0; day < 7; day++) {
+          stmt.run(
+            day,
+            shuffledMeat[day]?.id || null,
+            shuffledVegetable[day]?.id || null,
+            shuffledSoup[day]?.id || null
+          );
         }
-        res.json(rows);
+        
+        stmt.finalize(() => {
+          // 返回生成的完整菜单
+          db.all(`
+            SELECT 
+              wm.id, wm.day, 
+              d1.id as meat_id, d1.name as meat_name,
+              d2.id as vegetable_id, d2.name as vegetable_name,
+              d3.id as soup_id, d3.name as soup_name
+            FROM week_menu wm
+            LEFT JOIN dishes d1 ON wm.meat_dish_id = d1.id
+            LEFT JOIN dishes d2 ON wm.vegetable_dish_id = d2.id
+            LEFT JOIN dishes d3 ON wm.soup_dish_id = d3.id
+            ORDER BY wm.day ASC
+          `, [], (err, rows) => {
+            if (err) {
+              return res.status(500).json({ error: '获取新生成的周菜单失败', details: err.message });
+            }
+            res.json(rows);
+          });
+        });
       });
     });
   });
@@ -319,7 +350,7 @@ app.put('/api/week-menu/day/:day', (req, res) => {
               return res.status(500).json({ error: '创建菜单失败', details: err.message });
             }
             
-            res.json({
+            res.json({748123
               day,
               dish_id: selectedDish.id,
               name: selectedDish.name,
@@ -393,4 +424,4 @@ app.post('/api/logout', verifyToken, (req, res) => {
 
 app.listen(port, () => {
   console.log(`服务器运行在 http://localhost:${port}`);
-}); 
+});

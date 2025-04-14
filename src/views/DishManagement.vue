@@ -2,7 +2,6 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { 
   Button as TButton,
-  Form as TForm,
   CellGroup as TCellGroup,
   Cell as TCell,
   SwipeCell as TSwipeCell,
@@ -10,6 +9,8 @@ import {
   Toast,
 } from 'tdesign-mobile-vue'
 import DishForm from '../components/DishForm.vue'
+import { useAppStore } from '../stores/app'
+import { storeToRefs } from 'pinia'
 
 // 定义 API 基础路径
 const apiBaseUrl = '/api'
@@ -26,63 +27,8 @@ const getAllDishesList = computed(() => {
   return [...dishes.meat, ...dishes.vegetable, ...dishes.soup]
 })
 
-// 登录相关状态
-const isLoggedIn = ref(false)
-const showLoginForm = ref(false)
-const password = ref('')
-const authToken = ref('')
-
-// 验证登录状态
-const checkAuth = () => {
-  if (!isLoggedIn.value) {
-    showLoginForm.value = true
-    return false
-  }
-  return true
-}
-
-// 登录
-const login = async () => {
-  try {
-    const response = await fetch(`${apiBaseUrl}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ password: password.value }),
-    })
-    
-    if (response.ok) {
-      const data = await response.json()
-      authToken.value = data.token
-      isLoggedIn.value = true
-      showLoginForm.value = false
-      password.value = ''
-      Toast({ message: '登录成功' })
-    } else {
-      Toast({ message: '密码错误' })
-    }
-  } catch (error) {
-    Toast({ message: '登录失败' })
-  }
-}
-
-const logout = async () => {
-  try {
-    await fetch(`${apiBaseUrl}/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-auth-token': authToken.value,
-      },
-    })
-    authToken.value = ''
-    isLoggedIn.value = false
-    Toast({ message: '已登出' })
-  } catch (error) {
-    Toast({ message: '登出失败' })
-  }
-}
+const appStore = useAppStore();
+const { authToken } = storeToRefs(appStore)
 
 // 获取所有菜品
 const getAllDishes = async () => {
@@ -99,7 +45,7 @@ const getAllDishes = async () => {
 
 // 删除菜品
 const deleteDish = async (id: number) => {
-  if (!checkAuth()) return
+  if (!appStore.checkAuth()) return
 
   try {
     const response = await fetch(`${apiBaseUrl}/dishes/${id}`, {
@@ -133,7 +79,7 @@ interface DishData {
 }
 
 const onSubmit = async (data: DishData) => {
-  if (!checkAuth()) return;
+  if (!appStore.checkAuth()) return;
   try {
     const response = await fetch(`${apiBaseUrl}/dishes`, {
       method: 'POST',
@@ -183,7 +129,7 @@ const openEditForm = (dish: any) => {
 
 // 更新菜品
 const updateDish = async (data: DishData) => {
-  if (!checkAuth()) return;
+  if (!appStore.checkAuth()) return;
   try {
     const response = await fetch(`${apiBaseUrl}/dishes/${editingDish.id}`, {
       method: 'PUT',
@@ -220,57 +166,23 @@ onMounted(() => {
 
 <template>
   <div class="dish-management-page">
-    <!-- 登录弹窗 -->
-    <t-popup v-model:visible="showLoginForm" placement="center" :z-index="7000">
-      <div class="login-form">
-        <div class="login-form-header">
-          <span class="login-form-title">输入管理密码</span>
-        </div>
-        <t-form>
-          <t-input
-            v-model="password"
-            type="password"
-            placeholder="请输入管理密码"
-            clearable
-          />
-          <div class="login-form-buttons">
-            <t-button theme="default" block @click="showLoginForm = false" style="margin-bottom: 12px;">
-              取消
-            </t-button>
-            <t-button theme="primary" block @click="login">
-              确认
-            </t-button>
-          </div>
-        </t-form>
-      </div>
-    </t-popup>
 
-    <div class="auth-section">
-      <t-button 
-        variant="text" 
-        @click="isLoggedIn ? logout() : showLoginForm = true"
-      >
-        <template #icon>
-          <t-icon :name="isLoggedIn ? 'lock-off' : 'lock-on'" />
-        </template>
-        {{ isLoggedIn ? '已登录' : '未登录' }}
-      </t-button>
-    </div>
-
-    <div class="form-container">
+    <t-cell-group theme="card">
+      <div class="form-container">
       <dish-form
         :initial-data="formData"
         :all-dishes="getAllDishesList"
         submit-text="添加菜品"
         @submit="onSubmit"
-      />
-    </div>
+        />
+      </div>
+    </t-cell-group>
 
     <div class="swipe-hint-container">
       <span class="swipe-hint">左滑可删除菜品，点击可编辑</span>
     </div>
 
-    <t-cell-group v-if="dishes.meat.length">
+    <t-cell-group theme="card" v-if="dishes.meat.length">
       <template #title>
         <div class="group-title">
           <span>荤菜</span>
@@ -286,7 +198,7 @@ onMounted(() => {
       </t-swipe-cell>
     </t-cell-group>
 
-    <t-cell-group v-if="dishes.vegetable.length">
+    <t-cell-group theme="card" v-if="dishes.vegetable.length">
       <template #title>
         <div class="group-title">
           <span>素菜</span>
@@ -302,7 +214,7 @@ onMounted(() => {
       </t-swipe-cell>
     </t-cell-group>
 
-    <t-cell-group v-if="dishes.soup.length">
+    <t-cell-group theme="card" v-if="dishes.soup.length">
       <template #title>
         <div class="group-title">
           <span>汤类</span>
@@ -343,7 +255,8 @@ onMounted(() => {
 
 <style scoped>
 .dish-management-page {
-  padding: 16px;
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 
 .auth-section {
@@ -431,4 +344,4 @@ onMounted(() => {
 .login-form-buttons {
   margin-top: 24px;
 }
-</style> 
+</style>

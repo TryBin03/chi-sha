@@ -4,9 +4,14 @@ import {
   TabBar as TTabBar,
   TabBarItem as TTabBarItem,
   Navbar as TNavbar,
+  Button as TButton,
+  Icon as TIcon,
 } from 'tdesign-mobile-vue'
 import { HappyIcon, BroccoliIcon, CalendarIcon } from 'tdesign-icons-vue-next'
 import { useRouter, useRoute } from 'vue-router'
+import { useAppStore } from './stores/app'
+import { storeToRefs } from 'pinia'
+import LoginPopup from './components/LoginPopup.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -36,15 +41,39 @@ watch(active, (newVal) => {
     router.push('/week-menu')
   }
 })
+
+const appStore = useAppStore();
+const { isLoggedIn, showLoginForm } = storeToRefs(appStore)
 </script>
 
 <template>
+
   <div class="app-container">
     <t-navbar class="navbar">
       <template #left>
         {{ active === 'home' ? '今天吃啥' : active === 'manage' ? '菜品管理' : '一周菜单' }}
       </template>
+      <template #right>
+        <div class="auth-section">
+          <t-button 
+            variant="text" 
+            @click="isLoggedIn ? appStore.logout() : showLoginForm = true"
+          >
+            <template #icon>
+              <t-icon :name="isLoggedIn ? 'lock-off' : 'lock-on'" />
+            </template>
+            {{ isLoggedIn ? '已登录' : '未登录' }}
+          </t-button>
+        </div>
+      </template>
     </t-navbar>
+
+    <!-- 登录弹窗 -->
+    <login-popup
+      v-model:visible="showLoginForm"
+      @update:visible="showLoginForm = $event"
+    />
+
 
     <div class="content">
       <router-view></router-view>

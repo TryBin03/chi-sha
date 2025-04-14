@@ -24,6 +24,7 @@ const emit = defineEmits<{
 
 const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
+// 修改columns和数据格式
 const columns = [
   {
     colKey: 'day',
@@ -31,14 +32,19 @@ const columns = [
     width: 80,
   },
   {
-    colKey: 'dish',
-    title: '菜品',
+    colKey: 'meat',
+    title: '荤菜',
     width: 120,
   },
   {
-    colKey: 'type',
-    title: '类型',
-    width: 80,
+    colKey: 'vegetable',
+    title: '素菜',
+    width: 120,
+  },
+  {
+    colKey: 'soup',
+    title: '汤类',
+    width: 120,
   },
   {
     colKey: 'action',
@@ -46,6 +52,19 @@ const columns = [
     width: 100,
   },
 ]
+
+const data = computed(() => {
+  return weekDays.map((dayName, index) => {
+    const menuItem = props.weekMenu.find(item => item.day === index)
+    return {
+      day: dayName,
+      meat: menuItem?.meat_name || '-',
+      vegetable: menuItem?.vegetable_name || '-',
+      soup: menuItem?.soup_name || '-',
+      action: index,
+    }
+  })
+})
 
 const getTypeText = (type: string) => {
   const typeMap: Record<string, string> = {
@@ -55,18 +74,6 @@ const getTypeText = (type: string) => {
   }
   return typeMap[type] || type
 }
-
-const data = computed(() => {
-  return weekDays.map((dayName, index) => {
-    const menuItem = props.weekMenu.find(item => item.day === index)
-    return {
-      day: dayName,
-      dish: menuItem?.name || '-',
-      type: menuItem ? getTypeText(menuItem.type) : '-',
-      action: index,
-    }
-  })
-})
 
 const handleRegenerateDay = (day: number) => {
   emit('regenerateDay', day)
@@ -99,4 +106,4 @@ defineExpose({})
 .t-table {
   margin-bottom: 16px;
 }
-</style> 
+</style>
